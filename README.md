@@ -55,6 +55,8 @@ If you omit `--api-key`, you’ll be prompted interactively.
 - `--no-video`: Skip Veo video test
 - `--no-tts`: Skip TTS tests
 - `-v, --verbose`: Verbose HTTP logs
+ - `--key-file <PATH>`: Validate many keys from a file (one key per line; `#` comments and blank lines ignored)
+ - `--validate`: Validation‑only mode; does not run tests and does not create any output directories
 
 ### Examples
 - Minimal:
@@ -69,6 +71,23 @@ If you omit `--api-key`, you’ll be prompted interactively.
   ```bash
   python3 Gemini_API_Key_Exposure_Scanner.py --api-key AIza... -v
   ```
+
+### Bulk validation (no output directories, no tests)
+- Validate a single key without running tests:
+  ```bash
+  python3 Gemini_API_Key_Exposure_Scanner.py --api-key AIza... --validate
+  ```
+- Validate many keys from a file `keys.txt` (one per line):
+  ```bash
+  python3 Gemini_API_Key_Exposure_Scanner.py --key-file keys.txt --validate
+  ```
+
+What happens in validation mode:
+- The tool calls the models listing endpoint to check acceptance.
+- Results per key are printed concisely:
+  - Green: `[*NOT Vulnerable*]` if Gemini is not enabled/usable for that key
+  - Red: `[*Vulnerable*]` if the API key is accepted by Gemini endpoints
+- No evidence generation, no tests, and no `output/<KEY>/` directories are created in this mode.
 
 ---
 

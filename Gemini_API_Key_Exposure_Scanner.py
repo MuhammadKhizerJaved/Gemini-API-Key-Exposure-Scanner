@@ -607,12 +607,76 @@ async def main() -> None:
     parser.add_argument("--no-video", action="store_true", help="Skip video test.")
     parser.add_argument("--no-tts", action="store_true", help="Skip TTS test.")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output.")
+    parser.add_argument("--key-file", dest="key_file", default="", help="Path to a file with one API key per line.")
+    parser.add_argument("--validate", action="store_true", help="Validation-only mode for single key or --key-file; does not run tests or create output directories.")
     args = parser.parse_args()
 
     # Banner
     print_banner("Muhammad Khizer Javed", "whoami.securitybreached.org")
 
-    # Prompt
+    # Bulk validation mode (no output directories, no tests)
+    if args.validate and (args.key_file or args.api_key):
+        def _mask_key(k: str) -> str:
+            if not k:
+                return "(empty)"
+            if len(k) <= 8:
+                return k
+            return f"{k[:4]}...{k[-4:]}"
+
+        def _load_keys_from_file(path: str) -> List[str]:
+            keys: List[str] = []
+            try:
+                with open(path, "r", encoding="utf-8") as fh:
+                    for line in fh:
+                        raw = line.strip()
+                        if not raw or raw.startswith("#"):
+                            continue
+                        keys.append(raw)
+            except Exception as e:
+                print_warn(f"Failed to read key file: {e}")
+            return keys
+
+        # Gather keys: either from file or the single provided --api-key
+        key_list: List[str] = []
+        if args.key_file:
+            key_list = _load_keys_from_file(args.key_file)
+        if args.api_key:
+            key_list.append(args.api_key)
+        # De-duplicate while preserving order
+        seen: set = set()
+        deduped: List[str] = []
+        for k in key_list:
+            if k not in seen:
+                seen.add(k)
+                deduped.append(k)
+
+        if not deduped:
+            print_warn("No API keys provided for validation.")
+            return
+
+        print_header("Validating API keys (bulk mode)")
+        total = 0
+        vulnerable = 0
+        not_vulnerable = 0
+        for key in deduped:
+            total += 1
+            status, payload = _fetch_models(key)
+            if status == 200:
+                vulnerable += 1
+                print_warn(f"[*Vulnerable*] { _mask_key(key) } -> API key accepted by Gemini endpoints.")
+            else:
+                not_vulnerable += 1
+                raw = payload.get("error", {}).get("message", "Failed to list models") if isinstance(payload, dict) else ""
+                friendly = _friendly_validation_message(raw)
+                print_ok(f"[*NOT Vulnerable*] { _mask_key(key) } -> {friendly}")
+
+        print_header("Summary")
+        print_info(f"Total: {total}")
+        print_warn(f"Vulnerable: {vulnerable}")
+        print_ok(f"Not Vulnerable: {not_vulnerable}")
+        return
+
+    # Prompt (single-key interactive mode)
     if not args.api_key:
         try:
             args.api_key = input(_c("Enter Google API key: ", "yellow", bold=True)).strip()
