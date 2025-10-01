@@ -505,26 +505,7 @@ def _render_capabilities_list(caps: Dict[str, List[str]]) -> str:
     return "\n".join(lines) if lines else "- None detected"
 
 
-def _pricing_rows(caps: Dict[str, List[str]], pricing_doc: Dict) -> Tuple[str, str]:
-    pricing = pricing_doc.get("pricing", {})
-    rows: List[str] = []
-    
-    if pricing.get("image.standard.imagen-4-fast"):
-        per_image = pricing["image.standard.imagen-4-fast"].get("per_image")
-        rows.append(f"| Image (Imagen 4 Fast) | 1 image | ${per_image:.2f} | Paid per image |")
-    if pricing.get("video.standard.veo-3-fast"):
-        p = pricing["video.standard.veo-3-fast"].get("per_second")
-        rows.append(f"| Video (Veo 3 Fast) | 60 seconds | ${p*60:.2f} | ${p:.2f}/sec |")
-    if pricing.get("video.standard.veo-3"):
-        p = pricing["video.standard.veo-3"].get("per_second")
-        rows.append(f"| Video (Veo 3) | 60 seconds | ${p*60:.2f} | ${p:.2f}/sec |")
-    if pricing.get("tts.standard.gemini-2.5-flash-preview-tts"):
-        out_m = pricing["tts.standard.gemini-2.5-flash-preview-tts"].get("output_per_million_audio")
-        per_min = (out_m / 1_000_000.0) * 1920.0
-        rows.append(f"| Audio (TTS Flash Preview) | ~1 minute | ~${per_min:.4f} | ~32 tokens/sec |")
-    last = pricing_doc.get("meta", {}).get("last_updated", "unknown")
-    table = "\n".join(["| Capability | Unit | Cost | Notes |", "| --- | --- | --- | --- |"] + (rows or ["| — | — | — | — |"]))
-    return table, last
+ 
 
 
 def _ffmpeg_available() -> bool:
@@ -727,15 +708,11 @@ async def main() -> None:
     print_header("Running tests")
 
     evidence_files: List[str] = []
-    attempted: List[bool] = []
-    results: List[bool] = []
 
     # Text
     if caps.get("text"):
         print_info("Generating text…")
-        attempted.append(True)
         ok_text = _test_text(args.api_key, caps["text"][0], args.verbose)
-        results.append(ok_text)
         if ok_text:
             print_ok("Text test OK")
         else:
@@ -743,9 +720,7 @@ async def main() -> None:
 
     # Image (Imagen 4)
     print_info("Generating image (Imagen 4 Fast)…")
-    attempted.append(True)
     ok_image = _test_imagen4(args.api_key, out_dir, args.verbose)
-    results.append(ok_image)
     if ok_image:
         print_ok("Image saved: imagen4.png")
         evidence_files.append("- imagen4.png")
@@ -755,9 +730,7 @@ async def main() -> None:
     # TTS single
     if caps.get("tts") and not args.no_tts:
         print_info("Generating audio (single)…")
-        attempted.append(True)
         ok_tts = _test_tts(args.api_key, caps["tts"][0], out_dir, args.verbose)
-        results.append(ok_tts)
         if ok_tts:
             if os.path.exists(os.path.join(out_dir, "single_speaker.wav")):
                 evidence_files.append("- single_speaker.wav")
@@ -769,9 +742,7 @@ async def main() -> None:
     # TTS multi
     if caps.get("tts") and not args.no_tts:
         print_info("Generating audio (multi-speaker)…")
-        attempted.append(True)
         ok_tts_multi = _test_tts_multi(args.api_key, caps["tts"][0], out_dir, args.verbose)
-        results.append(ok_tts_multi)
         if ok_tts_multi:
             if os.path.exists(os.path.join(out_dir, "multi_speaker.wav")):
                 evidence_files.append("- multi_speaker.wav")
@@ -783,9 +754,7 @@ async def main() -> None:
     # Video (always attempt unless disabled)
     if not args.no_video:
         print_info("Generating video (Veo Fast fallback, 5s)…")
-        attempted.append(True)
         ok_video = _test_video_with_fallback(args.api_key, out_dir, seconds=5, verbose=args.verbose)
-        results.append(ok_video)
         if ok_video:
             print_ok("Video saved: Generated_Video.mp4")
             evidence_files.append("- Generated_Video.mp4")
@@ -794,9 +763,6 @@ async def main() -> None:
 
     # Results summary
     print_header("Results")
-    if caps.get("text") and attempted:
-        # first attempted corresponds to text when present
-        print_ok("Text") if results[0] else None
     for f in evidence_files:
         print_ok(f.replace("- ", ""))
 
