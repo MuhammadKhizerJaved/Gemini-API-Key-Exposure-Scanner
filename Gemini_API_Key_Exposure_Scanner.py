@@ -135,6 +135,10 @@ The provided Google API key is accepted by Gemini endpoints. Detected capabiliti
 
 This enables unauthorized image/video/audio generation and chat, potentially incurring charges and exhausting quotas.
 
+## Validation Tool
+For easier triage, you can quickly validate a Google API key using this open-source scanner:
+- Repository: {{ repo_url }}
+
 ## Steps To Reproduce (PoC)
 List available models (capabilities discovery):
 ```bash
@@ -784,6 +788,7 @@ async def main() -> None:
         "evidence_list": "\n".join(evidence_files) if evidence_files else "- (none)",
         "pricing_table": pricing_table_md,
         "pricing_last_updated": PRICING["meta"]["last_updated"],
+        "repo_url": "https://github.com/MuhammadKhizerJaved/Gemini-API-Key-Exposure-Scanner",
     }
     report = _render_report(ctx)
     report_path = os.path.join(out_dir, "report.md")
