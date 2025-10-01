@@ -553,6 +553,20 @@ def _fetch_models(api_key: str, timeout: int = 30) -> Tuple[int, Dict]:
         return resp.status_code, {"error": {"message": "Non-JSON response"}}
 
 
+def _friendly_validation_message(raw_message: str) -> str:
+    """Return a concise, user-friendly validation message for common API failures."""
+    msg = raw_message or "Failed to validate API key."
+    lower = msg.lower()
+    if "has not been used" in lower or "disabled" in lower or "enable it by visiting" in lower:
+        return (
+            "This API key is not enabled for Gemini (Generative Language API) in the target project."
+        )
+    if "api key not valid" in lower or "invalid key" in lower:
+        return "The provided API key appears invalid. Double-check and try again."
+    if "permission" in lower or "forbidden" in lower or "403" in lower:
+        return "The API key lacks permission to access Gemini models."
+    return msg
+
 def _build_capability_matrix(models_payload: Dict) -> Dict[str, List[str]]:
     models = models_payload.get("models", [])
     names = [m.get("name", "") for m in models]
@@ -609,16 +623,26 @@ async def main() -> None:
             print_warn("API key cannot be empty.")
             return
 
+    # NOTE: We will create the output directory only after confirming the key is vulnerable
+
+    # Validation
+    print_header("Validating API key")
+    status, payload = _fetch_models(args.api_key)
+    if status != 200:
+        raw = payload.get("error", {}).get("message", "Failed to list models")
+        friendly = _friendly_validation_message(raw)
+        # Treat as NOT vulnerable (green) and exit without creating output folder
+        print_ok("[*NOT Vulnerable*] " + friendly)
+        return
+    # Vulnerable: key accepted
+    print_warn("[*Vulnerable*] API key accepted by Gemini endpoints.")
+
+    # Now that the key is confirmed vulnerable, create output directory
     out_dir = os.path.join(V2_ROOT, "output", args.api_key)
     os.makedirs(out_dir, exist_ok=True)
 
     # Discovery
     print_header("Detected capabilities")
-    status, payload = _fetch_models(args.api_key)
-    if status != 200:
-        msg = payload.get("error", {}).get("message", "Failed to list models")
-        print_warn(msg)
-        return
     caps = _build_capability_matrix(payload)
     # Keep a full capabilities string for the report
     cap_text = _render_capabilities_list(caps)
